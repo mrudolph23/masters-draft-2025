@@ -11,7 +11,7 @@ supabase = create_client(os.environ.get("SUPABASE_URL"), os.environ.get("SUPABAS
 
 # CONFIGURATION
 # Remember to update ?event=XXXX for the Masters!
-ESPN_API_URL = "https://site.api.espn.com/apis/site/v2/sports/golf/leaderboard?league=pga"
+ESPN_API_URL = "https://site.api.espn.com/apis/site/v2/sports/golf/leaderboard?tournamentId=401811940"
 
 def clean_name(name):
     """Normalize names for matching"""
@@ -42,7 +42,7 @@ def update_scores():
         return
 
     # Database Setup
-    t_res = supabase.table("tournaments").select("id").eq("name", "The Masters 2025").single().execute()
+    t_res = supabase.table("tournaments").select("id").eq("name", "The Masters 2026").single().execute()
     t_id = t_res.data['id']
     
     db_golfers = supabase.table("tournament_field").select("golfer_id, golfers(name)").eq("tournament_id", t_id).execute()

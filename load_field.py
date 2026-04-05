@@ -10,7 +10,7 @@ supabase = create_client(url, key)
 
 def sync_from_csv():
     # 1. Get Tournament ID
-    query = supabase.table("tournaments").select("id").eq("name", "The Masters 2025").execute()
+    query = supabase.table("tournaments").select("id").eq("name", "The Masters 2026").execute()
     if not query.data:
         print("Error: Tournament not found.")
         return

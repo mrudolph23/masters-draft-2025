@@ -21,7 +21,7 @@ supabase = create_client(url, key)
 # --- 2. HELPER FUNCTIONS ---
 def get_tournament_id():
     # We use .execute() instead of .single() to prevent crashes
-    res = supabase.table("tournaments").select("id").eq("name", "The Masters 2025").execute()
+    res = supabase.table("tournaments").select("id").eq("name", "The Masters 2026").execute()
     
     if res.data: 
         # Just grab the very first ID in the list, even if there are multiples
@@ -87,7 +87,7 @@ def get_leaderboard(t_id):
 
 # --- 3. MAIN APP UI ---
 
-st.title("⛳ The Masters 2025")
+st.title("⛳ The Masters 2026")
 t_id = get_tournament_id()
 
 if not t_id:
@@ -104,17 +104,23 @@ except AttributeError:
     # On Localhost, this attribute doesn't exist, so we default to None
     user_email = None
 
-# 2. DEBUG MODE (Localhost or No Email Found)
+# 2. MANUAL LOGIN (If Streamlit Cloud email isn't found)
 if not user_email:
-    st.sidebar.warning("⚠️ Local/Debug Mode")
+    st.sidebar.warning("⚠️ Authentication Required")
+    
+    # The Bouncer: Ask for a shared league password
+    league_password = st.sidebar.text_input("Enter League Password:", type="password")
+    
+    # If they type the wrong password (or nothing), STOP the app completely
+    if league_password != "80085":  # <-- Change "greenjacket" to whatever you want!
+        st.error("Please enter the correct password in the sidebar to enter the Draft Room.")
+        st.stop() # This is the emergency brake!
+        
+    # If they get the password right, let them select who they are
+    st.sidebar.success("Password accepted!")
     all_buddies = get_buddies(t_id)
     
-    # Store the selection in session state so it doesn't reset every rerun
-    if "debug_user" not in st.session_state:
-        st.session_state.debug_user = all_buddies[0] if all_buddies else "Guest"
-        
-    selected_nickname = st.sidebar.selectbox("Select User (Debug):", all_buddies, index=all_buddies.index(st.session_state.debug_user) if st.session_state.debug_user in all_buddies else 0)
-    st.session_state.debug_user = selected_nickname
+    selected_nickname = st.sidebar.selectbox("Who are you drafting for?", all_buddies)
     
     # Fetch profile based on the manual selection
     user_profile = supabase.table("profiles").select("*").eq("nickname", selected_nickname).single().execute()
