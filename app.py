@@ -4,6 +4,7 @@ import time
 from supabase import create_client
 from dotenv import load_dotenv
 import os
+from twilio.rest import Client
 
 # --- 1. SETUP & CONNECTION ---
 st.set_page_config(page_title="Masters 2025", layout="wide")
@@ -84,6 +85,36 @@ def get_leaderboard(t_id):
         
     full_df['thru'] = full_df['thru'].fillna('-')
     return full_df
+
+def send_on_the_clock_text(next_picker_id, t_id):
+    # 1. Look up the next guy's phone number and name
+    profile_res = supabase.table("profiles").select("nickname, phone_number").eq("id", next_picker_id).single().execute()
+    next_guy = profile_res.data
+    
+    # Skip if they don't have a phone number saved
+    if not next_guy or not next_guy.get('phone_number'):
+        return 
+        
+    # 2. Get your Twilio Keys (Works on Cloud and Local)
+    try:
+        account_sid = st.secrets["TWILIO_ACCOUNT_SID"]
+        auth_token = st.secrets["TWILIO_AUTH_TOKEN"]
+        twilio_number = st.secrets["TWILIO_PHONE_NUMBER"]
+    except FileNotFoundError:
+        account_sid = os.environ.get("TWILIO_ACCOUNT_SID")
+        auth_token = os.environ.get("TWILIO_AUTH_TOKEN")
+        twilio_number = os.environ.get("TWILIO_PHONE_NUMBER")
+    
+    # 3. Fire the Text!
+    client = Client(account_sid, auth_token)
+    try:
+        message = client.messages.create(
+            body=f"🚨 DRAFT ALERT 🚨\n{next_guy['nickname']}, you are ON THE CLOCK for the Masters Draft! Make your pick here: https://masters-draft-2025-dqdqb42xyaysbxczf6kjzu.streamlit.app/#the-masters-2025",
+            from_=twilio_number,
+            to=next_guy['phone_number']
+        )
+    except Exception as e:
+        print(f"Twilio error: {e}") # Fails silently so it doesn't crash your app
 
 # --- 3. MAIN APP UI ---
 
@@ -239,8 +270,23 @@ with tab_draft:
                         g_name = selection.split(" (Rank")[0]
                         g_id = next(item['golfer_id'] for item in field_res.data if item['golfers']['name'] == g_name)
                         
+                        # Save the pick
                         supabase.table("picks").insert({"tournament_id": t_id, "user_id": picker_id, "golfer_id": g_id}).execute()
+                        
+                        # Move the draft status forward 1 pick
                         supabase.table("draft_status").update({"current_pick_number": current_pick + 1}).eq("tournament_id", t_id).execute()
+                        
+                        # --- NEW TWILIO TRIGGER ---
+                        # Find out whose turn it is next
+                        next_pick_res = supabase.table("draft_order").select("user_id").eq("tournament_id", t_id).eq("position", current_pick + 1).execute()
+                        
+                        # If there is a next pick (i.e., the draft isn't over), send the text
+                        if next_pick_res.data:
+                            next_user_id = next_pick_res.data[0]['user_id']
+                            send_on_the_clock_text(next_user_id, t_id)
+                        # ---------------------------
+                        
+                        # Finally, refresh the page
                         st.rerun()
                 else:
                     st.warning(f"No golfers left in Tier {selected_tier}!")
