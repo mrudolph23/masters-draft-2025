@@ -36,6 +36,17 @@ def get_buddies(t_id):
     res = supabase.table("profiles").select("nickname").execute()
     return sorted([row['nickname'] for row in res.data])
 
+def get_full_draft_order(t_id):
+    # Fetch the draft order and sort it from Pick 1 to the end
+    res = supabase.table("draft_order").select("position, profiles(nickname)").eq("tournament_id", t_id).order("position").execute()
+    
+    if not res.data: 
+        return pd.DataFrame()
+        
+    # Format it nicely for Streamlit
+    data = [{"Pick": row['position'], "Manager": row['profiles']['nickname']} for row in res.data]
+    return pd.DataFrame(data)
+
 def get_draft_board(t_id):
     # Get all picks to display the grid
     res = supabase.table("picks").select("user_id, profiles(nickname), golfer_id, golfers(name)").eq("tournament_id", t_id).execute()
@@ -127,62 +138,58 @@ if not t_id:
 
 # --- AUTHENTICATION LOGIC ---
 
-# 1. Try to get the email (Works on Cloud, Fails on Local)
-try:
-    # On Streamlit Cloud, this returns the user's email
-    user_email = st.experimental_user.email
-except AttributeError:
-    # On Localhost, this attribute doesn't exist, so we default to None
-    user_email = None
+# First, check if they are already locked in
+if "logged_in_user" not in st.session_state:
+    st.session_state.logged_in_user = None
 
-# 2. MANUAL LOGIN (If Streamlit Cloud email isn't found)
-if not user_email:
+if not st.session_state.logged_in_user:
     st.sidebar.warning("⚠️ Authentication Required")
+    entered_email = st.sidebar.text_input("Enter your Email Address:")
     
-    # The Bouncer: Ask for a shared league password
-    league_password = st.sidebar.text_input("Enter League Password:", type="password")
-    
-    # If they type the wrong password (or nothing), STOP the app completely
-    if league_password != "80085":  # <-- Change "greenjacket" to whatever you want!
-        st.error("Please enter the correct password in the sidebar to enter the Draft Room.")
-        st.stop() # This is the emergency brake!
-        
-    # If they get the password right, let them select who they are
-    st.sidebar.success("Password accepted!")
-    all_buddies = get_buddies(t_id)
-    
-    selected_nickname = st.sidebar.selectbox("Who are you drafting for?", all_buddies)
-    
-    # Fetch profile based on the manual selection
-    user_profile = supabase.table("profiles").select("*").eq("nickname", selected_nickname).single().execute()
-
-else:
-    # 3. REAL MODE (Cloud)
-    st.sidebar.success(f"Logged in as: {user_email}")
-    
-    # Look up the email in your database
-    user_profile = supabase.table("profiles").select("*").eq("email", user_email).execute()
-    
-    if not user_profile.data:
-        st.error(f"🚫 ACCESS DENIED. The email '{user_email}' is not found in the player list. Please contact the Commissioner.")
+    if not entered_email:
         st.stop()
         
-    selected_nickname = user_profile.data[0]['nickname']
+    clean_email = entered_email.strip().lower()
+    user_profile = supabase.table("profiles").select("*").eq("email", clean_email).execute()
+    
+    if not user_profile.data:
+        st.sidebar.error("Email not found in the league directory. Check your spelling.")
+        st.stop()
+        
+    # If found, lock them into the session and refresh!
+    if st.sidebar.button("Log In"):
+        st.session_state.logged_in_user = user_profile.data[0]
+        st.rerun() 
+        
+    st.stop() # Wait for them to click the Log In button
 
-# 4. Set Current User Variables
-current_user_id = user_profile.data['id'] if user_profile.data else None
-# If we used .execute() (list) vs .single() (dict), handle both safely:
-if isinstance(user_profile.data, list):
-     current_user_id = user_profile.data[0]['id']
-     selected_nickname = user_profile.data[0]['nickname']
-else:
-     current_user_id = user_profile.data['id']
-     selected_nickname = user_profile.data['nickname']
+# --- IF THEY ARE LOGGED IN ---
+# Grab their info from the locked session state
+current_user = st.session_state.logged_in_user
 
-current_user_name = selected_nickname
+# Set Current User Variables for the rest of the app to use
+current_user_id = current_user['id']
+current_user_name = current_user['nickname']
 
-st.sidebar.write(f"Welcome, **{current_user_name}**!")
+st.sidebar.success(f"Logged in as: {current_user_name}")
+
+# Give them a way to log out (which unlocks the session)
+if st.sidebar.button("Log Out"):
+    st.session_state.logged_in_user = None
+    st.rerun()
+
 st.sidebar.divider()
+st.sidebar.write(f"Welcome, **{current_user_name}**!")
+
+# --- NEW: Draft Order Display ---
+with st.sidebar.expander("📋 Full Draft Order", expanded=False):
+    order_df = get_full_draft_order(t_id)
+    if not order_df.empty:
+        # Hide the index so it looks super clean
+        st.dataframe(order_df, use_container_width=True, hide_index=True)
+    else:
+        st.write("Draft order not set.")
+# --------------------------------
 st.sidebar.write("Draft Rules:")
 st.sidebar.caption("• 1 Golfer from Tier 1\n• 2 Golfers from Tier 2\n• 1 Golfer from Tier 3")
 
