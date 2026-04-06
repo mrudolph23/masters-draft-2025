@@ -144,11 +144,6 @@ if "logged_in_user" not in st.session_state:
 
 if not st.session_state.logged_in_user:
     st.sidebar.warning("⚠️ Authentication Required")
-    # TEMPORARY DEBUGGER: Show all emails so the guys can copy/paste
-    all_profiles = supabase.table("profiles").select("email").execute()
-    email_list = [p['email'] for p in all_profiles.data]
-    st.sidebar.caption("Valid Emails in System:")
-    st.sidebar.write(email_list)
     entered_email = st.sidebar.text_input("Enter your Email Address:")
     
     if not entered_email:
