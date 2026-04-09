@@ -11,7 +11,7 @@ supabase = create_client(os.environ.get("SUPABASE_URL"), os.environ.get("SUPABAS
 
 # CONFIGURATION
 # Remember to update ?event=XXXX for the Masters!
-ESPN_API_URL = "https://site.api.espn.com/apis/site/v2/sports/golf/leaderboard?tournamentId=401811940"
+ESPN_API_URL = "https://site.api.espn.com/apis/site/v2/sports/golf/leaderboard?tournamentId=401811941"
 
 def clean_name(name):
     """Normalize names for matching"""
