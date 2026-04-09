@@ -31,7 +31,6 @@ def update_scores():
         competition = event['competitions'][0]
         tournament_name = event['name']
         
-        # --- NEW: CHECK CURRENT ROUND ---
         # 'period' tells us if it is Round 1, 2, 3, or 4
         current_round = competition['status']['period']
         print(f"Tournament: {tournament_name} | Current Round: {current_round}")
@@ -75,19 +74,14 @@ def update_scores():
             status_data = player.get('status', {})
             status_text = status_data.get('type', {}).get('shortDetail', 'Active')
             
-            # Normalize status to uppercase for checking
             status_upper = status_text.upper()
             is_cut = "CUT" in status_upper or "W/D" in status_upper or "DQ" in status_upper
             
             # 3. APPLY THE "80 RULE"
             # If they missed the cut, we override their R3/R4 scores based on the day
             if is_cut:
-                # If the tournament has reached Round 3, apply penalty for R3
-                if current_round >= 3:
-                    r3 = 80
-                # If the tournament has reached Round 4, apply penalty for R4
-                if current_round >= 4:
-                    r4 = 80
+                if current_round >= 3: r3 = 80
+                if current_round >= 4: r4 = 80
             
             # 4. Calculate Total
             total_strokes = r1 + r2 + r3 + r4
@@ -118,5 +112,5 @@ if __name__ == "__main__":
             update_scores()
         except Exception as e:
             print(f"Error: {e}")
-        print("💤 Sleeping for 30 minutes...")
-        time.sleep(1800)
+        print("💤 Sleeping for 15 minutes...")
+        time.sleep(900)
